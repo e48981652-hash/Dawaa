@@ -1,0 +1,330 @@
+@charset "UTF-8";
+
+/* حيّاك — الهوية: ليل نجدي (نيلي) + زعفران، ومثلثات العمارة النجدية كعنصر وحيد مميّز */
+:root {
+  --night: #171b3a;
+  --night-2: #252a57;
+  --saffron: #e5a832;
+  --paper: #f3f2f8;
+  --surface: #ffffff;
+  --ink: #1d2142;
+  --muted: #5f6384;
+  --line: #dddbe9;
+  --focus: #3b41b5;
+
+  --ok: #1b7566;
+  --ok-bg: #e3f2ef;
+  --no: #a83b3b;
+  --no-bg: #f8e7e6;
+  --maybe: #8a5a00;
+  --maybe-bg: #fbf0d6;
+  --pend: #5f6384;
+  --pend-bg: #e9e8f2;
+
+  --display: 'Reem Kufi', 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif;
+  --body: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 16px/1.75 var(--body);
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+h1, h2, h3 { font-family: var(--display); font-weight: 700; line-height: 1.4; margin: 0; }
+p { margin: 0; }
+a { color: inherit; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.muted { color: var(--muted); }
+.ltr { direction: ltr; text-align: right; unicode-bidi: isolate; }
+
+/* ── مثلثات النجد ── */
+.band, .divider {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='12' viewBox='0 0 24 12'%3E%3Cpath d='M0 0h12L6 12z' fill='%23E5A832'/%3E%3Cpath d='M12 12h12L18 0z' fill='%23E5A832' fill-opacity='.4'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-size: 24px 12px;
+}
+.band { height: 12px; background-color: var(--night); }
+.divider { height: 12px; width: 120px; margin: 24px auto; background-position: center; }
+
+/* ── الهيكل ── */
+.top { background: var(--night); color: #fff; }
+.top-in {
+  max-width: 760px; margin: 0 auto; padding: 10px 16px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.brand { font-family: var(--display); font-size: 28px; font-weight: 700; color: var(--saffron); text-decoration: none; line-height: 1.3; }
+.top-user { display: flex; align-items: center; gap: 14px; }
+.top-user .user { color: #c9cbe3; font-size: 14px; }
+.demo { background: var(--maybe-bg); color: var(--maybe); padding: 8px 16px; font-size: 14px; text-align: center; }
+.wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px 96px; }
+
+.page-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.page-head h1 { font-size: 28px; }
+.back { display: inline-block; margin-bottom: 12px; color: var(--muted); text-decoration: none; font-size: 15px; min-height: 32px; }
+.back:hover { color: var(--ink); text-decoration: underline; }
+
+/* ── أزرار ── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 46px; padding: 0 22px; border-radius: 10px;
+  border: 1.5px solid var(--night); background: var(--night); color: #fff;
+  font-weight: 600; cursor: pointer; text-decoration: none; text-align: center;
+  transition: background-color 0.15s, transform 0.08s;
+}
+.btn:hover { background: var(--night-2); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled, .btn[aria-disabled='true'] { opacity: 0.45; cursor: not-allowed; transform: none; }
+.btn.ghost { background: transparent; color: var(--night); }
+.btn.ghost:hover { background: #e7e6f1; }
+.btn.saffron { background: var(--saffron); border-color: var(--saffron); color: var(--night); }
+.btn.saffron:hover { background: #efbb4d; }
+.btn.danger { background: transparent; border-color: var(--no); color: var(--no); }
+.btn.danger:hover { background: var(--no-bg); }
+.btn.small { min-height: 38px; padding: 0 14px; font-size: 15px; }
+.btn.block { width: 100%; }
+.link-btn {
+  background: none; border: 0; padding: 6px 2px; min-height: 36px; cursor: pointer;
+  color: var(--focus); font-weight: 600; font-size: 14px; text-decoration: underline; text-underline-offset: 3px;
+}
+.link-btn.light { color: #c9cbe3; }
+.link-btn.danger { color: var(--no); }
+.icon-btn { background: none; border: 0; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; font-size: 18px; }
+.icon-btn:hover { background: var(--pend-bg); }
+
+/* ── نماذج ── */
+.field { display: grid; gap: 6px; margin-bottom: 18px; }
+.field > label, .field > .label { font-weight: 600; font-size: 15px; }
+.hint { color: var(--muted); font-size: 13px; line-height: 1.6; }
+input[type='text'], input[type='tel'], input[type='password'], input[type='url'], input[type='date'],
+input[type='time'], input[type='number'], input[type='search'], select, textarea {
+  width: 100%; min-height: 46px; padding: 9px 12px; border: 1.5px solid var(--line);
+  border-radius: 10px; background: #fff;
+}
+textarea { resize: vertical; line-height: 1.7; }
+input:focus, select:focus, textarea:focus { border-color: var(--focus); outline: none; box-shadow: 0 0 0 3px rgba(59, 65, 181, 0.18); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.check-row { display: flex; align-items: center; gap: 10px; min-height: 44px; font-weight: 500; }
+.check-row input { width: 20px; height: 20px; accent-color: var(--night); }
+.form-error { color: var(--no); font-size: 14px; min-height: 22px; margin-bottom: 8px; }
+.form-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+
+/* ── الدخول ── */
+.auth-hero { background: var(--night); color: #fff; text-align: center; padding: 56px 20px 40px; }
+.auth-hero .brand-lg { font-family: var(--display); font-weight: 700; font-size: 64px; line-height: 1.2; color: var(--saffron); }
+.auth-hero p { color: #c9cbe3; margin-top: 8px; font-size: 17px; }
+.auth-body { max-width: 420px; margin: 0 auto; padding: 28px 16px 64px; }
+.auth-body h1 { font-size: 24px; margin-bottom: 18px; }
+.switch { margin-top: 18px; text-align: center; color: var(--muted); font-size: 15px; }
+
+/* ── قائمة المناسبات ── */
+.section-title { font-size: 18px; margin: 28px 0 4px; color: var(--muted); }
+.event-row {
+  display: grid; grid-template-columns: 64px 1fr; gap: 16px; align-items: center;
+  padding: 16px 0; border-top: 1px solid var(--line); text-decoration: none;
+}
+.event-row:hover .event-title { text-decoration: underline; text-underline-offset: 4px; }
+.event-row.past { opacity: 0.6; }
+.datebox {
+  display: grid; align-content: center; justify-items: center; width: 64px; height: 76px;
+  background: var(--night); color: #fff; border-radius: 8px;
+}
+.datebox .d { font-family: var(--display); font-size: 32px; line-height: 1.1; color: var(--saffron); }
+.datebox .m { font-size: 13px; }
+.event-title { font-family: var(--display); font-size: 21px; font-weight: 700; line-height: 1.4; }
+.event-sub { display: flex; flex-wrap: wrap; gap: 0 14px; color: var(--muted); font-size: 14px; }
+.event-counts { display: flex; flex-wrap: wrap; gap: 0 14px; margin-top: 4px; font-size: 14px; font-weight: 600; }
+.event-counts .ok { color: var(--ok); }
+.empty { padding: 48px 8px; text-align: center; }
+.empty h2 { font-size: 22px; margin-bottom: 8px; }
+.empty p { color: var(--muted); margin: 0 auto 20px; max-width: 360px; }
+
+/* ── صفحة المناسبة ── */
+.event-head { margin-bottom: 20px; }
+.event-head h1 { font-size: 30px; }
+.event-head .host { color: var(--muted); margin-top: 2px; }
+.when { margin-top: 12px; font-weight: 600; font-size: 17px; }
+.when-sub, .venue { color: var(--muted); }
+.venue a { color: var(--focus); text-underline-offset: 3px; }
+.past-note { margin-top: 12px; padding: 8px 12px; background: var(--pend-bg); border-radius: 8px; font-size: 14px; }
+
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); background: #fff; border: 1.5px solid var(--line); border-radius: 12px; overflow: hidden; }
+.stat { padding: 14px 6px 12px; text-align: center; border-inline-start: 1px solid var(--line); }
+.stat:first-child { border-inline-start: 0; }
+.stat b { display: block; font-family: var(--display); font-size: 32px; line-height: 1.2; }
+.stat span { font-size: 13px; color: var(--muted); }
+.stat small { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); line-height: 1.4; }
+.stat small span { display: block; font-size: 12px; }
+.stat.ok b { color: var(--ok); }
+.stat.maybe b { color: var(--maybe); }
+.stat.no b { color: var(--no); }
+.stat.pend b { color: var(--pend); }
+.bar { display: flex; height: 8px; margin-top: 10px; border-radius: 4px; overflow: hidden; background: var(--line); }
+.bar i { display: block; flex-basis: 0; min-width: 0; }
+.bar .s-ok { background: var(--ok); }
+.bar .s-maybe { background: #d9a22b; }
+.bar .s-no { background: var(--no); }
+.bar .s-pend { background: #b4b6cf; }
+.progress-note { margin-top: 10px; color: var(--muted); font-size: 14px; }
+
+.actions { margin: 20px 0 8px; display: flex; flex-wrap: wrap; gap: 10px; }
+.reminder-note { color: var(--muted); font-size: 14px; margin-bottom: 8px; }
+
+.toolbar { margin-top: 28px; }
+.toolbar h2 { font-size: 22px; margin-bottom: 10px; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.filter {
+  min-height: 38px; padding: 0 14px; border-radius: 999px; border: 1.5px solid var(--line);
+  background: #fff; cursor: pointer; font-size: 14px; font-weight: 600;
+}
+.filter[aria-pressed='true'] { background: var(--night); border-color: var(--night); color: #fff; }
+.filter span { opacity: 0.75; margin-inline-start: 4px; }
+
+.guest-row { padding: 14px 0; border-top: 1px solid var(--line); }
+.guest-main { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.guest-name { font-weight: 600; }
+.guest-phone { color: var(--muted); font-size: 14px; direction: ltr; unicode-bidi: isolate; text-align: right; }
+.guest-state { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.plus { font-weight: 600; color: var(--ok); font-size: 14px; }
+.chip { display: inline-flex; align-items: center; padding: 1px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.chip.accepted { background: var(--ok-bg); color: var(--ok); }
+.chip.declined { background: var(--no-bg); color: var(--no); }
+.chip.maybe { background: var(--maybe-bg); color: var(--maybe); }
+.chip.pending { background: var(--pend-bg); color: var(--pend); }
+.guest-meta { display: flex; flex-wrap: wrap; gap: 2px 16px; margin-top: 2px; color: var(--muted); font-size: 13px; }
+.guest-meta .bad { color: var(--no); }
+.guest-meta .good { color: var(--ok); font-weight: 600; }
+.guest-actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0 20px; margin-top: 4px; }
+.more[open] { flex-basis: 100%; }
+.more summary {
+  display: inline-flex; align-items: center; min-height: 36px; padding: 6px 2px; cursor: pointer;
+  color: var(--focus); font-weight: 600; font-size: 14px; list-style: none;
+}
+.more summary::-webkit-details-marker { display: none; }
+.more summary::after {
+  content: ''; width: 6px; height: 6px; margin-inline-start: 8px; margin-top: -3px;
+  border: solid currentColor; border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+.more[open] summary::after { margin-top: 3px; transform: rotate(-135deg); }
+.more-items { display: flex; flex-wrap: wrap; gap: 0 18px; padding-bottom: 4px; }
+
+/* ── نافذة منبثقة ── */
+dialog.dlg { border: 0; border-radius: 14px; padding: 0; width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); background: #fff; color: var(--ink); }
+dialog.dlg::backdrop { background: rgba(23, 27, 58, 0.6); }
+.dlg-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--line); }
+.dlg-head h2 { font-size: 21px; }
+.dlg-body { padding: 20px; }
+.result-list { margin: 8px 0 0; padding-inline-start: 20px; font-size: 14px; color: var(--muted); }
+.msg-item { padding: 12px 0; border-top: 1px solid var(--line); }
+.msg-item header { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; font-weight: 600; }
+.msg-item pre { margin: 6px 0 0; padding: 10px 12px; background: var(--paper); border-radius: 8px; white-space: pre-wrap; word-break: break-word; font: 400 14px/1.7 var(--body); }
+
+.toasts { position: fixed; inset-inline: 0; bottom: 20px; display: grid; justify-items: center; gap: 8px; pointer-events: none; z-index: 50; padding: 0 16px; }
+.toast { background: var(--night); color: #fff; padding: 10px 18px; border-radius: 10px; font-size: 15px; max-width: 460px; }
+.toast.error { background: var(--no); }
+
+/* ── صفحة الضيف ── */
+body.guest {
+  min-height: 100dvh; background: var(--night); padding: 20px 14px 56px;
+  display: flex; justify-content: center; align-items: flex-start;
+}
+.invite { width: min(460px, 100%); background: #fff; border-radius: 8px; overflow: hidden; }
+.invite-body { padding: 30px 24px 34px; text-align: center; }
+.invite .hello { color: var(--muted); font-size: 15px; }
+.invite .from { margin-top: 18px; color: var(--muted); font-size: 15px; }
+.invite .from b { color: var(--ink); font-weight: 600; }
+.invite .title { margin-top: 4px; font-size: 36px; line-height: 1.35; color: var(--night); }
+.invite .day { font-family: var(--display); font-size: 24px; font-weight: 700; }
+.invite .hijri { color: var(--muted); font-size: 15px; }
+.invite .time { margin-top: 6px; font-size: 20px; font-weight: 600; }
+.invite .place { margin-top: 18px; font-weight: 600; font-size: 18px; }
+.invite .note { margin: 18px auto 0; max-width: 340px; padding: 12px 14px; background: var(--paper); border-radius: 8px; font-size: 15px; white-space: pre-wrap; text-align: center; }
+.invite .map-link { margin-top: 10px; }
+
+.reply h2 { font-size: 24px; }
+.reply .sub { color: var(--muted); font-size: 15px; margin-top: 4px; }
+.choices { display: grid; gap: 10px; margin-top: 18px; }
+.stepper { display: inline-flex; align-items: center; gap: 22px; margin: 14px 0 6px; }
+.stepper button {
+  width: 48px; height: 48px; border-radius: 50%; border: 1.5px solid var(--night);
+  background: #fff; font-size: 24px; line-height: 1; cursor: pointer;
+}
+.stepper button:disabled { opacity: 0.35; cursor: not-allowed; }
+.stepper output { min-width: 40px; font-family: var(--display); font-size: 34px; font-weight: 700; }
+.done .check { width: 76px; height: 76px; margin: 0 auto 10px; display: block; }
+.check circle, .check path { fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-width: 3; }
+.check circle { stroke: var(--saffron); stroke-dasharray: 176; }
+.check path { stroke: var(--night); stroke-dasharray: 44; }
+.check.anim circle { animation: draw-c 0.6s ease backwards; }
+.check.anim path { animation: draw-p 0.35s 0.5s ease backwards; }
+@keyframes draw-c { from { stroke-dashoffset: 176; } to { stroke-dashoffset: 0; } }
+@keyframes draw-p { from { stroke-dashoffset: 44; } to { stroke-dashoffset: 0; } }
+.done h2 { font-size: 24px; }
+.done .choices { margin-top: 16px; }
+.closed-note { padding: 14px; background: var(--pend-bg); border-radius: 8px; }
+.error-box { padding: 40px 24px; text-align: center; }
+.error-box h1 { font-size: 24px; margin-bottom: 6px; }
+.noscript { padding: 24px; }
+body.guest .noscript { color: #fff; }
+
+@media (max-width: 480px) {
+  .row2 { grid-template-columns: 1fr; }
+  .stat b { font-size: 28px; }
+  .invite .title { font-size: 32px; }
+  .auth-hero .brand-lg { font-size: 56px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; animation-delay: 0s !important; transition: none !important; }
+}
+
+/* ── اختيار قالب الدعوة ── */
+.tpl-picker { border: 0; padding: 0; margin: 0 0 22px; min-width: 0; }
+.tpl-picker legend { padding: 0; margin-bottom: 4px; font-weight: 600; font-size: 15px; }
+.tpl-picker .hint { margin-bottom: 12px; }
+.tpl-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.tpl {
+  display: block; min-width: 0; padding: 8px; background: #fff; cursor: pointer;
+  border: 2px solid var(--line); border-radius: 12px;
+}
+.tpl:hover { border-color: #b9b8d3; }
+.tpl.selected { border-color: var(--focus); box-shadow: 0 0 0 2px var(--focus); }
+.tpl:focus-within { outline: 3px solid var(--focus); outline-offset: 2px; }
+.tpl-thumb {
+  display: flex; justify-content: center; align-items: flex-start; height: 200px; padding-top: 8px;
+  overflow: hidden; border-radius: 8px; background: var(--t-page);
+}
+.tpl-thumb .invite { flex: none; width: 380px; zoom: 0.43; pointer-events: none; }
+.tpl-name { display: block; margin-top: 8px; font-weight: 600; }
+.tpl-note { display: block; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.preview-stage { display: flex; justify-content: center; padding: 16px 8px; border-radius: 10px; background: var(--t-page); }
+.preview-stage .invite { pointer-events: none; }
+@media (min-width: 640px) {
+  .tpl-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* ── واتساب: معاينة الرسالة في سجل الرسائل ── */
+.wa-item { padding: 14px 0; border-top: 1px solid var(--line); }
+.wa-head { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+.wa-bubble { background: #fff; border: 1px solid var(--line); border-radius: 12px 12px 4px 12px; overflow: hidden; max-width: 340px; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.wa-img { display: block; width: 100%; height: auto; background: #eee; aspect-ratio: 4 / 5; object-fit: cover; }
+.wa-text { padding: 10px 12px 12px; white-space: pre-wrap; word-break: break-word; font: 400 14px/1.8 var(--body); color: #111; }
+.wa-btns { display: grid; gap: 6px; max-width: 340px; margin-top: 6px; }
+.wa-btn { appearance: none; border: 1px solid var(--line); background: #fff; color: #0b7a5f; font: 600 14px/1 var(--body); padding: 12px; border-radius: 10px; cursor: pointer; }
+.wa-btn:disabled { cursor: default; opacity: .75; }
+.wa-btn:not(:disabled):hover { background: #f1faf6; }
+
+/* بطاقة الدعوة وQR */
+.card-view { display: grid; gap: 12px; justify-items: center; }
+.card-img { width: 100%; max-width: 360px; height: auto; border-radius: 10px; border: 1px solid var(--line); }
+.my-qr { margin: 18px auto 6px; text-align: center; }
+.my-qr img { display: block; margin: 0 auto 8px; padding: 10px; background: #fff; border-radius: 14px; border: 1px solid var(--line); }
+.my-qr figcaption { font-size: 13px; opacity: .75; }
+.demo.warn { background: #fdeaea; color: #a32020; }

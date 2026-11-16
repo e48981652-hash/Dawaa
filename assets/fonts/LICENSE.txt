@@ -1,0 +1,3 @@
+الخطوط في هذا المجلد مرخّصة برخصة SIL Open Font License 1.1 (OFL).
+Amiri, Aref Ruqaa, Baloo Bhaijaan 2, Cairo, El Messiri, IBM Plex Sans Arabic, Lateef, Markazi Text, Reem Kufi, Tajawal.
+يجوز استخدامها وتضمينها وتوزيعها مع التطبيق. النص الكامل: https://openfontlicense.org
