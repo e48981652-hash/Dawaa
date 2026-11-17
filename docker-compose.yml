@@ -1,0 +1,65 @@
+name: dawaa
+
+services:
+  app:
+    build: .
+    image: dawaa-app:latest
+    container_name: dawaa-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: "3005"
+      DATA_DIR: /app/data
+      # داخل شبكة Compose نتحدث مع خدمة waha بالاسم، لا 127.0.0.1
+      WAHA_BASE_URL: http://waha:3000
+    ports:
+      # nginx على المضيف يصل للتطبيق عبر 127.0.0.1:3005 فقط
+      - "127.0.0.1:3005:3005"
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3005/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  waha:
+    image: devlikeapro/waha:latest
+    container_name: waha
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      # لوحة WAHA وAPI متاحان من المضيف فقط (أو عبر نفق SSH)
+      - "127.0.0.1:3006:3000"
+    environment:
+      WHATSAPP_DEFAULT_ENGINE: WEBJS
+      WAHA_API_KEY: ${WAHA_API_KEY}
+      WAHA_DASHBOARD_USERNAME: ${WAHA_DASHBOARD_USERNAME:-admin}
+      WAHA_DASHBOARD_PASSWORD: "${WAHA_DASHBOARD_PASSWORD:?set WAHA_DASHBOARD_PASSWORD in .env}"
+      # الويب هوك يذهب مباشرة إلى حاوية التطبيق داخل شبكة Compose
+      WHATSAPP_HOOK_URL: "http://app:3005/webhooks/waha"
+      WHATSAPP_HOOK_EVENTS: message,poll.vote,message.ack,session.status
+      WHATSAPP_HOOK_HMAC_KEY: ${WAHA_WEBHOOK_HMAC_KEY}
+      WHATSAPP_HOOK_RETRIES_ATTEMPTS: "10"
+    volumes:
+      # نفس مجلد الجلسة الحالي حتى لا نحتاج مسح QR من جديد
+      - ./waha-sessions:/app/.sessions
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -13,6 +13,12 @@ const scheduler = require('./src/scheduler');
 const whatsapp = require('./src/whatsapp');
 const waha = require('./src/waha');
 const { renderCard } = require('./src/card');
+
+// ذاكرة مؤقتة لصور البطاقات: renderCard ثقيل (SVG → PNG) ولا داعي لتكراره
+// لنفس الضيف في كل فتح. المفتاح يتغيّر تلقائياً عند تعديل بيانات المناسبة.
+const cardCache = new Map();
+const CARD_CACHE_TTL_MS = 5 * 60 * 1000;
+const CARD_CACHE_MAX = 300;
 const QRCode = require('qrcode');
 const { recordResponse } = require('./src/responses');
 const { TEMPLATES, DEFAULT_TEMPLATE, isTemplate } = require('./src/templates');
@@ -158,7 +164,12 @@ function readEventInput(body, { creating }) {
     throw new HttpError(400, 'موعد المناسبة لازم يكون في المستقبل');
   }
   const allow = body.allowCompanions === false || body.allowCompanions === 0 ? 0 : 1;
-  const max = Math.min(10, Math.max(0, parseInt(body.maxCompanions, 10) || 0));
+  // لو العميل لم يرسل maxCompanions (مثلاً إنشاء عبر API) نستخدم 2 بدل 0،
+  // حتى لا تظهر دعوة «اسمح بالمرافقين» بلا أي خيارات في صفحة الضيف.
+  const rawMax = body.maxCompanions;
+  const max = rawMax === undefined || rawMax === null || rawMax === ''
+    ? 2
+    : Math.min(10, Math.max(0, parseInt(rawMax, 10) || 0));
   return { title, occasion, honorees, venue, hostLine, notes, kind, template, mapUrl, startsAt, allow, max: allow ? max : 0 };
 }
 
@@ -525,10 +536,19 @@ const inviteUrl = (g) => `${cfg.PUBLIC_BASE_URL}/i/${g.token}`;
 app.get('/card/:token.png', inviteLimiter, (req, res) => {
   const { g, ev } = findByToken(req.params.token);
   const e = serializeEvent(ev);
-  const png = renderCard({
-    template: ev.template, occasion: e.occasion, host: ev.host_line, honorees: ev.honorees,
-    startsAt: ev.starts_at, venue: ev.venue, qrUrl: inviteUrl(g),
-  });
+  const key = [g.token, g.name, ev.template, ev.honorees, ev.host_line, ev.starts_at, ev.venue].join('|');
+  const hit = cardCache.get(key);
+  let png;
+  if (hit && hit.exp > Date.now()) {
+    png = hit.png;
+  } else {
+    png = renderCard({
+      template: ev.template, occasion: e.occasion, host: ev.host_line, honorees: ev.honorees,
+      startsAt: ev.starts_at, venue: ev.venue, qrUrl: inviteUrl(g),
+    });
+    cardCache.set(key, { png, exp: Date.now() + CARD_CACHE_TTL_MS });
+    if (cardCache.size > CARD_CACHE_MAX) cardCache.delete(cardCache.keys().next().value);
+  }
   res.set({ 'Content-Type': 'image/png', 'Cache-Control': 'private, max-age=300' });
   res.send(png);
 });

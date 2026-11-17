@@ -23,7 +23,7 @@
 cp .env.example .env     # عدّل القيم
 npm install
 npm start                # http://localhost:3000
-npm test                 # الاختبارات (29 اختباراً)
+npm test                 # الاختبارات (32 اختباراً)
 ```
 
 > **ويندوز يمنع `start.bat`؟** (رسالة Smart App Control) افتح الفولدر، اكتب `cmd` في شريط العنوان واضغط Enter، ثم نفّذ: `node\node.exe --disable-warning=ExperimentalWarning server.js`
@@ -49,24 +49,26 @@ npm test                 # الاختبارات (29 اختباراً)
 - تصويت الضيف يصل عبر Webhook (`poll.vote`) ويُسجَّل في قاعدة البيانات والداشبورد.
 - نص الرسالة يحمل دائمًا رابط الرد `/i/<token>` كشبكة أمان، ولو فشل إرسال الاستفتاء يُرسَل النص تلقائيًا (`sendText`).
 
-### 1) شغّل WAHA (Docker)
+### 1) شغّل التطبيق وWAHA بـ Docker Compose
+
+الملف `docker-compose.yml` يشغّل خدمتين على شبكة داخلية واحدة:
+
+- `app`: تطبيق حيّاك على `127.0.0.1:3005` (nginx على المضيف يصل إليه، وغير مكشوف للإنترنت مباشرة).
+- `waha`: WAHA على `127.0.0.1:3006` (لوحة التحكم وAPI من المضيف فقط).
 
 ```bash
-sudo docker run -d --name waha --restart unless-stopped \
-  -p 127.0.0.1:3006:3000 \
-  -e WHATSAPP_DEFAULT_ENGINE=WEBJS \
-  -e WHATSAPP_API_KEY=ضع-مفتاحًا-طويلًا \
-  -e WHATSAPP_HOOK_URL=http://172.17.0.1:3005/webhooks/waha \
-  -e WHATSAPP_HOOK_EVENTS=message,poll.vote,message.ack,session.status \
-  -e WHATSAPP_HOOK_HMAC_KEY=ضع-سرًا-آخر \
-  -e WHATSAPP_HOOK_RETRIES_ATTEMPTS=10 \
-  -v "$PWD/waha-sessions:/app/.sessions" \
-  devlikeapro/waha:latest
+cp .env.example .env
+# عدّل: PUBLIC_BASE_URL، WHATSAPP_MODE=waha، WAHA_API_KEY، WAHA_WEBHOOK_HMAC_KEY، WAHA_DASHBOARD_PASSWORD
+docker compose up -d --build
+docker compose ps
+docker compose logs -f app
 ```
 
-- `127.0.0.1:3006` يعني أن WAHA غير مكشوف للإنترنت.
-- `WHATSAPP_HOOK_URL` يشير إلى التطبيق من داخل الحاوية؛ على لينكس استخدم `172.17.0.1` وليس `localhost`.
-- مجلد `waha-sessions` يحفظ الجلسة بعد إعادة التشغيل.
+- `WHATSAPP_HOOK_URL` داخل Compose هو `http://app:3005/webhooks/waha` — لا حاجة لفتح منفذ 3005 للإنترنت ولا لقاعدة firewall خاصة.
+- `WAHA_BASE_URL` داخل التطبيق يُضبط تلقائياً إلى `http://waha:3000` من `docker-compose.yml`.
+- مجلد `waha-sessions` يحفظ جلسة واتساب بعد إعادة تشغيل الحاويات، ومجلد `data` يحفظ قاعدة البيانات.
+- لتحديث نسخة بعد `git pull`: `docker compose up -d --build`.
+- لوقف كل شيء: `docker compose down` (لا يحذف `data` أو `waha-sessions`).
 
 ### 2) اضبط `.env`
 
@@ -74,10 +76,12 @@ sudo docker run -d --name waha --restart unless-stopped \
 INVITE_CHANNEL=whatsapp
 WHATSAPP_MODE=waha
 PUBLIC_BASE_URL=https://dawaa.whoisthare.com
-WAHA_BASE_URL=http://127.0.0.1:3006
+WAHA_BASE_URL=http://127.0.0.1:3006   # يتجاوزه Compose إلى http://waha:3000
 WAHA_API_KEY=نفس-المفتاح-السابق
 WAHA_SESSION=default
 WAHA_WEBHOOK_HMAC_KEY=نفس-السر-السابق
+WAHA_DASHBOARD_USERNAME=admin
+WAHA_DASHBOARD_PASSWORD=كلمة-مرور-قوية
 ```
 
 ### 3) امسح QR
@@ -95,6 +99,7 @@ WAHA_WEBHOOK_HMAC_KEY=نفس-السر-السابق
 
 ### ملاحظات تشغيل
 
+- **رقم واحد للتطبيق كله:** جلسة WAHA (`default`) مرتبطة برقم واتساب واحد، وكل المنظّمين والمناسبات يرسلون منه. تخصيص رقم مختلف لكل منظّم يحتاج جلسات WAHA متعددة وربط كل منظّم بجلسة (غير مفعّل حالياً).
 - الرقم المخصص يُفضَّل أن يكون **رقمًا جديدًا غير مستخدم** في واتساب عادي، ويُسخَّن تدريجيًا (warm-up).
 - التطبيق يضع فاصلًا 4–7 ثوانٍ بين الرسائل (`WAHA_SEND_DELAY_MS` + `WAHA_SEND_JITTER_MS`).
 - لو توقفت WAHA أو الجلسة، تظهر الحالة في الداشبورد وتفشل الرسائل بسبب واضح بدل التعليق.
@@ -121,7 +126,7 @@ SMS_API_KEY=مفتاح_الـAPI
 
 - لازم HTTPS، وضع عنوان موقعك في `PUBLIC_BASE_URL`.
 - يحتاج **قرصاً دائماً** لمجلد `data/` (أو غيّر `DATA_DIR`)، ويعمل كعملية واحدة دائمة لأن مجدول التذكير داخله.
-- شغّله خلف خدمة تعيد تشغيله تلقائياً (systemd أو pm2 أو الاستضافة نفسها).
+- شغّله بـ `docker compose up -d` (سياسة `restart: unless-stopped` تعيد تشغيله مع Docker)، أو خلف systemd/pm2 لو شغّلته بدون Docker.
 - بعد إنشاء حساب العميل اجعل `ALLOW_REGISTRATION=false`.
 - انسخ ملف `data/hayyak.db` دورياً كنسخة احتياطية.
 - الخطوط المستخدمة في صورة البطاقة داخل `assets/fonts` (رخصة OFL).

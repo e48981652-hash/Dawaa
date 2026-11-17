@@ -1,0 +1,12 @@
+node_modules
+data
+waha-sessions
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+test
+docs
+tools
+*.log

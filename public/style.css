@@ -269,6 +269,9 @@ body.guest {
 @keyframes draw-p { from { stroke-dashoffset: 44; } to { stroke-dashoffset: 0; } }
 .done h2 { font-size: 24px; }
 .done .choices { margin-top: 16px; }
+.companion-edit { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--line); }
+.companion-edit .stepper { margin: 10px 0 12px; }
+.companion-edit .btn { width: 100%; }
 .closed-note { padding: 14px; background: var(--pend-bg); border-radius: 8px; }
 .error-box { padding: 40px 24px; text-align: center; }
 .error-box h1 { font-size: 24px; margin-bottom: 6px; }

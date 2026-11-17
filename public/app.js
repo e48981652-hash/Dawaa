@@ -771,10 +771,12 @@ async function viewEvent(eventId) {
   function openCard(g) {
     const img = relUrl(g.cardUrl);
     const dlg = openDialog(`بطاقة ${g.name}`, h('div', { class: 'card-view' },
-      h('img', { class: 'card-img', src: img, alt: `بطاقة دعوة ${g.name}` }),
+      h('a', { href: img, target: '_blank', rel: 'noopener noreferrer', title: 'فتح البطاقة في نافذة جديدة' },
+        h('img', { class: 'card-img', src: img, alt: `بطاقة دعوة ${g.name}`, loading: 'eager', decoding: 'async' })),
       h('p', { class: 'hint' }, 'هذه البطاقة تصل للضيف في رسالة الواتساب، وفيها رمز QR خاص به يفتح صفحة دعوته.'),
       h('div', { class: 'form-actions' },
         h('a', { class: 'btn', href: img, download: `بطاقة-${g.name}.png` }, 'تنزيل البطاقة'),
+        h('a', { class: 'btn ghost', href: img, target: '_blank', rel: 'noopener noreferrer' }, 'فتح البطاقة'),
         h('a', { class: 'btn ghost', href: relUrl(g.qrUrl), download: `qr-${g.name}.svg` }, 'تنزيل رمز QR'),
         h('button', { class: 'btn ghost', type: 'button', onclick: () => { dlg.close(); copyLink(g); } }, 'نسخ الرابط'))));
   }

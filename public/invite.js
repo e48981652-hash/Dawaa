@@ -164,6 +164,9 @@
       maybe: ['سجّلنا ردّك: ربما', 'يمكنك تغيير ردّك في أي وقت قبل المناسبة.'],
       declined: ['شكراً لإبلاغنا', 'نقدّر ردّك ويؤسفنا غيابك. يمكنك تغيير ردّك قبل المناسبة.'],
     }[g.status];
+    const max = data.event.maxCompanions;
+    const canEditCompanions = g.status === 'accepted' && !data.closed && data.event.allowCompanions && max > 0;
+    if (canEditCompanions) companions = Math.min(Math.max(0, companions), max);
     return h('section', { class: 'reply done' },
       g.status === 'accepted' && checkMark(fresh),
       h('h2', null, copy[0]),
@@ -171,6 +174,22 @@
       g.status === 'accepted' && data.qrUrl && h('figure', { class: 'my-qr' },
         h('img', { src: new URL(data.qrUrl, location.href).pathname, alt: 'رمز QR الخاص بدعوتك', width: '168', height: '168' }),
         h('figcaption', null, 'رمزك الخاص، أبرزه عند الدخول')),
+      canEditCompanions && h('div', { class: 'companion-edit' },
+        h('p', { class: 'sub' }, `عدد المرافقين معك الآن: ${companionsText(g.companions)}`),
+        h('div', { class: 'stepper' },
+          h('button', {
+            type: 'button', 'aria-label': 'زيادة عدد المرافقين', disabled: busy || companions >= max,
+            onclick: () => { companions += 1; render(); },
+          }, '+'),
+          h('output', { 'aria-live': 'polite' }, String(companions)),
+          h('button', {
+            type: 'button', 'aria-label': 'تقليل عدد المرافقين', disabled: busy || companions <= 0,
+            onclick: () => { companions -= 1; render(); },
+          }, '-')),
+        h('button', {
+          class: 'btn saffron', type: 'button', disabled: busy || companions === g.companions,
+          onclick: () => send('accepted', companions),
+        }, 'حفظ عدد المرافقين')),
       h('div', { class: 'choices' },
         g.status === 'accepted' && h('button', { class: 'btn ghost', type: 'button', onclick: downloadCalendar }, 'أضف إلى التقويم'),
         !data.closed && h('button', {
@@ -224,6 +243,7 @@
     const themeColor = getComputedStyle(document.body).getPropertyValue('--t-page').trim();
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta && themeColor) meta.setAttribute('content', themeColor);
+    companions = Math.max(0, Number(data.guest.companions) || 0);
     view = data.mode === 'reminder' || data.guest.status === 'pending' ? 'choose' : 'done';
     render();
   })();
