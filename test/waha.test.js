@@ -220,6 +220,23 @@ test('نفس حدث poll.vote مرة ثانية لا يُعالَج مرتين',
   assert.equal(countAfter, countBefore);
 });
 
+test('poll.vote بمعرّف @lid يُقبل إذا طابق الاستفتاء', async () => {
+  const g = guests[0];
+  const pollId = outboxRow(g.id, 'invite').poll_ext_id;
+  const payload = {
+    id: 'evt_poll_lid',
+    event: 'poll.vote',
+    session: 'default',
+    engine: 'WEBJS',
+    payload: {
+      vote: { id: 'vote_lid', from: '63282534682701@lid', selectedOptions: ['الاعتذار عن الدعوة'], timestamp: Date.now(), to: 'me', fromMe: false },
+      poll: { id: pollId, to: 'me', from: '201009372746@c.us', fromMe: true },
+    },
+  };
+  assert.equal((await webhook(payload)).status, 200);
+  assert.ok(await waitFor(() => guestRow(g.id).status === 'declined'));
+});
+
 test('رسالة نصية «أعتذر» تُسجّل الاعتذار', async () => {
   const g = guests[1];
   assert.equal((await webhook(textMsg('evt_text_decline', g.phone, 'أعتذر'))).status, 200);

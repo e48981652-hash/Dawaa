@@ -294,7 +294,10 @@ async function onPollVote(body) {
   const action = actionForOption(row, option);
   if (!action) return;
   const whatsapp = require('./whatsapp');
-  await whatsapp.handleButton(`${action}:${guest.token}`, phone);
+  // لو الضيف اتحدد من معرّف الاستفتاء نفسه (row) نثق به ولا نتحقق من الرقم —
+  // لأن واتساب الحديث يرسل التصويت بمعرّف @lid وليس رقم الهاتف.
+  const matchedByPoll = !!(row && row.guest_id);
+  await whatsapp.handleButton(`${action}:${guest.token}`, matchedByPoll ? null : phone);
 }
 
 /** معالجة حدث WAHA واحد. يرجع { duplicate: true } لو الحدث مكرر. */
