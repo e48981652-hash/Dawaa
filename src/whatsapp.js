@@ -113,12 +113,13 @@ function build(kind, guest, event, now = new Date()) {
 }
 
 function logOutbox({ guestId, eventId, kind, to, body, ok, error, meta, extId, pollExtId, source }) {
+  const id = (v) => (v === null || v === undefined ? null : String(v));
   db.prepare(
     `INSERT INTO outbox (guest_id, event_id, kind, to_phone, body, provider, channel, meta, ext_id, poll_ext_id, source, delivery, ok, error)
      VALUES (?, ?, ?, ?, ?, ?, 'whatsapp', ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     guestId, eventId, kind, to, body, `whatsapp-${cfg.WHATSAPP_MODE}`, meta ? JSON.stringify(meta) : null,
-    extId || null, pollExtId || null, source || cfg.WHATSAPP_MODE,
+    id(extId), id(pollExtId), source || cfg.WHATSAPP_MODE,
     ok && cfg.WHATSAPP_MODE === 'console' ? 'sent' : null, ok ? 1 : 0, error || null,
   );
 }

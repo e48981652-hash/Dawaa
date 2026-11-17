@@ -19,7 +19,14 @@ function chatId(phone) {
 
 function idOf(data) {
   if (!data) return null;
-  return data.id || (data._data && data._data.id) || null;
+  const v = data.id || (data._data && data._data.id) || null;
+  if (v === null || v === undefined) return null;
+  // WEBJS قد يرجع المعرّف كائناً: { fromMe, remote, id, _serialized }
+  if (typeof v === 'object') {
+    const s = v._serialized || v.id || null;
+    return s === null || s === undefined ? null : String(s);
+  }
+  return String(v);
 }
 
 async function api(path, payload) {
@@ -280,7 +287,8 @@ async function onPollVote(body) {
     ? db.prepare('SELECT * FROM guests WHERE id = ?').get(row.guest_id)
     : guestByPhone(phone);
   if (!guest) return;
-  if (phone && String(guest.phone).replace(/\D/g, '') !== phone) return; // تصويت من رقم آخر
+  // تصويت من رقم آخر: نتحقق فقط عندما يصل المعرّف بصيغة @c.us (أرقام @lid لا تُطابَق)
+  if (/@c\.us$/.test(String(rawFrom)) && phone && String(guest.phone).replace(/\D/g, '') !== phone) return;
   const option = (vote.selectedOptions && vote.selectedOptions[0]) || '';
   logInbound(guest, option || 'تصويت', { source: 'poll', pollId, option });
   const action = actionForOption(row, option);
@@ -340,6 +348,6 @@ async function ping() {
 }
 
 module.exports = {
-  chatId, sendInvite, sendText, processWebhook, verifyHmac, status, ping, captionFor,
+  chatId, idOf, sendInvite, sendText, processWebhook, verifyHmac, status, ping, captionFor,
   actionFromText, actionForOption,
 };

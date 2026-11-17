@@ -304,6 +304,15 @@ test('إعدادات WAHA الناقصة تظهر كتنبيه', () => {
   }
 });
 
+test('معرّف رسالة WEBJS الكائني يُحوَّل إلى نص (وإلا فشل حفظ outbox)', () => {
+  const waha = require('../src/waha');
+  assert.equal(waha.idOf({ id: { fromMe: true, remote: '2010@c.us', id: 'ABC', _serialized: 'true_2010@c.us_ABC' } }), 'true_2010@c.us_ABC');
+  assert.equal(waha.idOf({ id: { id: 'ABC' } }), 'ABC');
+  assert.equal(waha.idOf({ id: 'plain_id' }), 'plain_id');
+  assert.equal(waha.idOf({ _data: { id: 'data_id' } }), 'data_id');
+  assert.equal(waha.idOf(null), null);
+});
+
 test('وضع console يبقى للمعاينة بدون أي إرسال', async () => {
   const saved = { ...cfg };
   Object.assign(cfg, { WHATSAPP_MODE: 'console' });
