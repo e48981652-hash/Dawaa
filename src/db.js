@@ -80,6 +80,22 @@ CREATE TABLE IF NOT EXISTS outbox (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_outbox_event ON outbox(event_id);
+
+-- أحداث WAHA الواردة (لمنع المعالجة المزدوجة عند إعادة المحاولة)
+CREATE TABLE IF NOT EXISTS webhook_events (
+  id          TEXT PRIMARY KEY,              -- معرّف الحدث من WAHA
+  provider    TEXT NOT NULL,                 -- waha
+  event       TEXT NOT NULL,                 -- poll.vote | message | message.ack | session.status
+  received_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- حالة جلسة WAHA (صف واحد فقط)
+CREATE TABLE IF NOT EXISTS wa_status (
+  id         INTEGER PRIMARY KEY CHECK (id = 1),
+  status     TEXT,
+  phone      TEXT,
+  updated_at TEXT
+);
 `);
 
 // ترحيل: قواعد البيانات المنشأة قبل إضافة القوالب
@@ -102,7 +118,11 @@ addColumn('outbox', 'channel', "TEXT NOT NULL DEFAULT 'sms'");
 addColumn('outbox', 'meta', 'TEXT');                           // JSON: صورة وأزرار رسالة واتساب للمعاينة
 addColumn('outbox', 'ext_id', 'TEXT');                         // معرّف الرسالة عند واتساب
 addColumn('outbox', 'delivery', 'TEXT');
+addColumn('outbox', 'poll_ext_id', 'TEXT');                    // معرّف رسالة الاستفتاء (لمطابقة التصويت)
+addColumn('outbox', 'source', 'TEXT');                         // waha | console
+addColumn('guests', 'last_inbound_at', 'TEXT');                // آخر ردّ وارد من الضيف
 db.exec('CREATE INDEX IF NOT EXISTS idx_outbox_ext ON outbox(ext_id)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_outbox_poll ON outbox(poll_ext_id)');
 
 function transaction(fn) {
   db.exec('BEGIN');

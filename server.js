@@ -11,6 +11,7 @@ const { describe, riyadhParts, toStartsAt } = require('./src/format');
 const { dispatchInvites, dispatchReminders, linkFor } = require('./src/dispatch');
 const scheduler = require('./src/scheduler');
 const whatsapp = require('./src/whatsapp');
+const waha = require('./src/waha');
 const { renderCard } = require('./src/card');
 const QRCode = require('qrcode');
 const { recordResponse } = require('./src/responses');
@@ -185,7 +186,7 @@ app.use((req, res, next) => {
   });
   next();
 });
-app.use(express.json({ limit: '256kb', verify: (req, res, buf) => { req.rawBody = buf; } }));
+app.use(express.json({ limit: '1mb', verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use('/api', (req, res, next) => {
   res.set('Cache-Control', 'no-store');
   next();
@@ -230,10 +231,24 @@ app.get('/api/me', requireAuth, (req, res) => {
   res.json({
     user: { name: req.org.name, phone: req.org.phone, phoneDisplay: displayPhone(req.org.phone) },
     channel: cfg.INVITE_CHANNEL,
+    whatsappMode: cfg.WHATSAPP_MODE,
     whatsappProblems: whatsapp.configProblems(),
+    waStatus: cfg.INVITE_CHANNEL === 'whatsapp' ? waha.status() : null,
     demoMode: cfg.INVITE_CHANNEL === 'whatsapp' ? cfg.WHATSAPP_MODE === 'console' : cfg.SMS_PROVIDER === 'console',
   });
 });
+
+// حالة جلسة WAHA (لشارة الاتصال في الداشبورد)
+app.get('/api/waha/status', requireAuth, wrap(async (req, res) => {
+  const s = waha.status();
+  const live = req.query.live === '1' ? await waha.ping() : null;
+  res.json({
+    ...s,
+    live,
+    mode: cfg.WHATSAPP_MODE,
+    problems: whatsapp.configProblems(),
+  });
+}));
 
 // ───────── القوالب ─────────
 app.get('/api/templates', (req, res) => {
@@ -420,7 +435,7 @@ app.get('/api/events/:id/outbox', requireAuth, (req, res) => {
   const rows = db
     .prepare(
       `SELECT o.id, o.kind, o.to_phone, o.body, o.ok, o.error, o.created_at, o.channel, o.meta, o.delivery,
-              o.guest_id, g.name AS guest_name
+              o.source, o.guest_id, g.name AS guest_name
          FROM outbox o LEFT JOIN guests g ON g.id = o.guest_id
         WHERE o.event_id = ? ORDER BY o.id DESC LIMIT 100`,
     )
@@ -432,9 +447,10 @@ app.get('/api/events/:id/outbox', requireAuth, (req, res) => {
       let meta = null;
       try { meta = r.meta ? JSON.parse(r.meta) : null; } catch { /* تجاهل */ }
       return {
-        id: r.id, kind: r.kind, channel: r.channel, guestId: r.guest_id, guestName: r.guest_name,
+        id: r.id, kind: r.kind, channel: r.channel, source: r.source, guestId: r.guest_id, guestName: r.guest_name,
         phone: displayPhone(r.to_phone), body: r.body, ok: !!r.ok, error: r.error, createdAt: r.created_at,
         delivery: r.delivery, image: meta && meta.image, buttons: meta && meta.buttons,
+        interactive: meta && meta.interactive, options: meta && meta.options,
       };
     }),
   });
@@ -524,22 +540,16 @@ app.get('/qr/:token.svg', inviteLimiter, wrap(async (req, res) => {
   res.send(svg);
 }));
 
-// ───────── واتساب: Webhook ─────────
-app.get('/webhooks/whatsapp', (req, res) => {
-  const ok = cfg.WHATSAPP_VERIFY_TOKEN
-    && req.query['hub.mode'] === 'subscribe'
-    && req.query['hub.verify_token'] === cfg.WHATSAPP_VERIFY_TOKEN;
-  if (!ok) return res.sendStatus(403);
-  res.status(200).type('text/plain').send(String(req.query['hub.challenge'] || ''));
-});
-
-app.post('/webhooks/whatsapp', wrap(async (req, res) => {
-  if (!whatsapp.verifySignature(req.rawBody, req.get('x-hub-signature-256'))) return res.sendStatus(403);
-  res.sendStatus(200); // نرد فوراً؛ واتساب يعيد المحاولة إذا تأخر الرد
+// ───────── WAHA: Webhook ─────────
+// WAHA يوقّع كل طلب بـ HMAC-SHA512 على الجسم الخام في ترويسة X-Webhook-Hmac.
+// نرد 200 فوراً ثم نعالج في الخلفية حتى لا يعيد WAHA المحاولة عند بطء المعالجة.
+app.post('/webhooks/waha', wrap(async (req, res) => {
+  if (!waha.verifyHmac(req.rawBody, req.get('x-webhook-hmac'))) return res.sendStatus(403);
+  res.sendStatus(200);
   try {
-    await whatsapp.processWebhook(req.body);
+    await waha.processWebhook(req.body);
   } catch (err) {
-    console.error('[واتساب] خطأ في معالجة الـ Webhook:', err);
+    console.error('[WAHA] خطأ في معالجة الـ Webhook:', err);
   }
 }));
 
@@ -577,7 +587,10 @@ app.use((err, req, res, next) => {
 function start() {
   scheduler.start();
   return app.listen(cfg.PORT, () => {
-    console.log(`حيّاك يعمل على ${cfg.PUBLIC_BASE_URL} (القناة: ${cfg.INVITE_CHANNEL === 'whatsapp' ? `واتساب/${cfg.WHATSAPP_MODE}` : `SMS/${cfg.SMS_PROVIDER}`})`);
+    const channel = cfg.INVITE_CHANNEL === 'whatsapp'
+      ? `واتساب/${cfg.WHATSAPP_MODE}${cfg.WHATSAPP_MODE === 'waha' ? ` · WAHA: ${cfg.WAHA_BASE_URL}` : ''}`
+      : `SMS/${cfg.SMS_PROVIDER}`;
+    console.log(`حيّاك يعمل على ${cfg.PUBLIC_BASE_URL} (القناة: ${channel})`);
   });
 }
 

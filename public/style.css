@@ -320,6 +320,13 @@ body.guest .noscript { color: #fff; }
 .wa-btn { appearance: none; border: 1px solid var(--line); background: #fff; color: #0b7a5f; font: 600 14px/1 var(--body); padding: 12px; border-radius: 10px; cursor: pointer; }
 .wa-btn:disabled { cursor: default; opacity: .75; }
 .wa-btn:not(:disabled):hover { background: #f1faf6; }
+.wa-opt { display: block; border: 1px solid var(--line); background: #fff; color: #0b7a5f; font: 600 14px/1.4 var(--body); padding: 11px 12px; border-radius: 10px; text-align: center; }
+.wa-bubble.in { border-radius: 12px 12px 12px 4px; background: #e8f7ef; border-color: #c4e8d6; }
+.wa-item.inbound { background: #f7fdf9; margin: 0 -8px; padding: 14px 8px; border-radius: 8px; }
+.wa-status { display: inline-block; margin: 2px 0 8px; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; }
+.wa-status.ok { background: #e7f6ee; color: #0b7a5f; }
+.wa-status.warn { background: var(--maybe-bg); color: var(--maybe); }
+.wa-status.bad { background: #fdeaea; color: #a32020; }
 
 /* بطاقة الدعوة وQR */
 .card-view { display: grid; gap: 12px; justify-items: center; }

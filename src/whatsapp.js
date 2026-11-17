@@ -1,16 +1,19 @@
-// واتساب للأعمال (Meta WhatsApp Cloud API): دعوة بصورة البطاقة وثلاثة أزرار، واستقبال ضغطات الأزرار عبر Webhook.
+// واجهة واتساب للتطبيق. المزوّد الوحيد الآن هو WAHA (محرك WEBJS) — انظر src/waha.js.
 //
-// الرسائل المبادَرة من التطبيق لازم تكون «قوالب» معتمدة مسبقاً من Meta. نصوص القالبين أدناه (BODY_*) هي بالضبط
-// ما يُنشأ في WhatsApp Manager (انظر README). المتغيرات {{1}} {{2}}… تُملأ من بيانات الضيف والمناسبة.
+// الأزرار التفاعلية (sendButtons) أوقفتها WAHA رسميًا (deprecated)، فالبديل المعتمد هو
+// استفتاء بخيارَي القبول/الاعتذار، مع رابط صفحة الدعوة داخل نص الرسالة كشبكة أمان.
+// الردود تصل من WAHA عبر /webhooks/waha ثم تُمرَّر إلى handleButton() هنا — نفس الدالة
+// التي تستخدمها صفحة الضيف — فيتحدث guests.status والداشبورد بنفس المسار.
 //
-// WHATSAPP_MODE=console يعرض الرسالة بنفس شكلها داخل التطبيق ويمكن تجربة الضغط على الأزرار، بدون أي إرسال فعلي.
+// WHATSAPP_MODE=console يعرض الرسالة داخل «سجل الرسائل» ويمكن تجربة ضغطاتها بدون إرسال فعلي.
 const crypto = require('crypto');
 const db = require('./db');
 const cfg = require('./env');
+const waha = require('./waha');
 const { describe, dotted, daysUntil } = require('./format');
 const { recordResponse } = require('./responses');
 
-// ───────── نصوص القوالب ─────────
+// ───────── نصوص الرسائل ─────────
 const BODY_INVITE = [
   'السلام عليكم ورحمة الله وبركاته',
   '',
@@ -26,7 +29,7 @@ const BODY_INVITE = [
   '🗓️| {{5}}',
   '📍| {{6}}',
   '',
-  '📌 يسعدنا تأكيد حضوركم وذلك بالضغط على أيقونة قبول الدعوة بالرسالة أدناه',
+  '📌 يسعدنا تأكيد حضوركم بالضغط على أحد خياري الاستفتاء بالرسالة أدناه',
 ].join('\n');
 
 const BODY_REMINDER = [
@@ -40,25 +43,24 @@ const BODY_REMINDER = [
   'وذلك {{4}}',
   '📍| {{5}}',
   '',
-  '📌 نأمل تأكيد حضوركم مرة أخرى بالضغط على أحد الأزرار أدناه',
+  '📌 نأمل تأكيد حضوركم مرة أخرى بالضغط على أحد خياري الاستفتاء أدناه',
 ].join('\n');
 
+// خيارا الاستفتاء لكل نوع رسالة (الموقع يظهر في نص الرسالة وليس خياراً)
 const BUTTONS = {
   invite: [
     { action: 'a', label: 'قبول الدعوة' },
     { action: 'd', label: 'الاعتذار عن الدعوة' },
-    { action: 'l', label: 'موقع المناسبة' },
   ],
   reminder: [
     { action: 'a', label: 'أؤكد حضوري' },
     { action: 'd', label: 'أعتذر عن الحضور' },
-    { action: 'l', label: 'موقع المناسبة' },
   ],
 };
 
 const fill = (tpl, params) => tpl.replace(/\{\{(\d+)\}\}/g, (_, i) => params[Number(i) - 1] ?? '');
 
-// Meta ترفض المتغيرات التي تحوي أسطراً جديدة أو أكثر من 4 مسافات متتالية
+// توحيد الفراغات داخل المتغيرات (يبقى النص سطراً واحداً كما كان في قوالب Meta)
 const param = (v) => String(v ?? '').replace(/\s+/g, ' ').replace(/\*/g, '').trim().slice(0, 900) || '-';
 
 const HONORIFIC = { m: 'المكرم', f: 'المكرمة' };
@@ -68,13 +70,11 @@ const cardUrl = (g) => `${cfg.PUBLIC_BASE_URL}/card/${g.token}.png`;
 
 /** إعدادات واتساب الناقصة في وضع الإرسال الفعلي (تظهر للمنظّم كتنبيه) */
 function configProblems() {
-  if (cfg.INVITE_CHANNEL !== 'whatsapp' || cfg.WHATSAPP_MODE !== 'cloud') return [];
+  if (cfg.INVITE_CHANNEL !== 'whatsapp' || cfg.WHATSAPP_MODE !== 'waha') return [];
   const p = [];
-  if (!cfg.WHATSAPP_TOKEN) p.push('WHATSAPP_TOKEN (مفتاح الوصول من Meta)');
-  if (!cfg.WHATSAPP_PHONE_ID) p.push('WHATSAPP_PHONE_ID (معرّف رقم واتساب)');
-  if (!/^https:\/\//.test(cfg.PUBLIC_BASE_URL)) p.push('PUBLIC_BASE_URL لازم يكون رابط https عام');
-  if (!cfg.WHATSAPP_APP_SECRET) p.push('WHATSAPP_APP_SECRET (لاستقبال ضغطات الأزرار)');
-  if (!cfg.WHATSAPP_VERIFY_TOKEN) p.push('WHATSAPP_VERIFY_TOKEN (لربط الـ Webhook)');
+  if (!/^https:\/\//.test(cfg.PUBLIC_BASE_URL)) p.push('PUBLIC_BASE_URL لازم يكون رابط https يصل إليه الضيف (روابط الدعوة)');
+  if (!cfg.WAHA_BASE_URL) p.push('WAHA_BASE_URL (عنوان خدمة WAHA)');
+  if (!cfg.WAHA_WEBHOOK_HMAC_KEY) p.push('WAHA_WEBHOOK_HMAC_KEY (للتحقق من توقيع الردود الواردة)');
   return p;
 }
 
@@ -85,7 +85,7 @@ function missingForWhatsApp(event) {
   return null;
 }
 
-/** يبني الرسالة: اسم القالب، المتغيرات، النص الكامل للمعاينة، الصورة، الأزرار */
+/** يبني الرسالة: النص الكامل للمعاينة، رابط البطاقة، وخيارا الاستفتاء */
 function build(kind, guest, event, now = new Date()) {
   const d = describe(event.starts_at);
   const when = `يوم ${d.weekday} ${dotted(event.starts_at)} الساعة ${d.time}`;
@@ -98,14 +98,13 @@ function build(kind, guest, event, now = new Date()) {
     params = [greeting(guest), occasion, event.honorees, `${day ? day + ' ' : ''}${when}`.trim(), event.venue];
     body = BODY_REMINDER;
   } else {
-    // الدعوة: التاريخ فقط (الساعة والتاريخ الهجري على صورة البطاقة)، كما في النموذج المطلوب
+    // الدعوة: التاريخ فقط (الساعة والتاريخ الهجري على صورة البطاقة)
     params = [greeting(guest), event.host_line, occasion, event.honorees, `يوم ${d.weekday} ${dotted(event.starts_at)}`, event.venue];
     body = BODY_INVITE;
   }
   params = params.map(param);
   return {
     kind,
-    template: kind === 'reminder' ? cfg.WHATSAPP_TEMPLATE_REMINDER : cfg.WHATSAPP_TEMPLATE_INVITE,
     params,
     text: fill(body, params),
     image: cardUrl(guest),
@@ -113,103 +112,70 @@ function build(kind, guest, event, now = new Date()) {
   };
 }
 
-/** حمولة Meta لرسالة القالب */
-function templatePayload(to, msg) {
-  return {
-    messaging_product: 'whatsapp',
-    to,
-    type: 'template',
-    template: {
-      name: msg.template,
-      language: { code: cfg.WHATSAPP_LANG },
-      components: [
-        { type: 'header', parameters: [{ type: 'image', image: { link: msg.image } }] },
-        { type: 'body', parameters: msg.params.map((text) => ({ type: 'text', text })) },
-        ...msg.buttons.map((b, i) => ({
-          type: 'button', sub_type: 'quick_reply', index: String(i), parameters: [{ type: 'payload', payload: b.payload }],
-        })),
-      ],
-    },
-  };
-}
-
-async function post(payload) {
-  if (!cfg.WHATSAPP_TOKEN || !cfg.WHATSAPP_PHONE_ID) {
-    throw new Error('إعدادات واتساب ناقصة: WHATSAPP_TOKEN و WHATSAPP_PHONE_ID');
-  }
-  const res = await fetch(`https://graph.facebook.com/${cfg.WHATSAPP_API_VERSION}/${cfg.WHATSAPP_PHONE_ID}/messages`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${cfg.WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(20000),
-  });
-  let data = {};
-  try { data = await res.json(); } catch { /* بدون JSON */ }
-  if (!res.ok) {
-    const e = data.error || {};
-    throw new Error(`${e.message || 'رفض واتساب الطلب'} (HTTP ${res.status}${e.code ? `، رمز ${e.code}` : ''})`);
-  }
-  return data.messages && data.messages[0] ? data.messages[0].id : null;
-}
-
-function logOutbox({ guestId, eventId, kind, to, body, ok, error, meta, extId }) {
+function logOutbox({ guestId, eventId, kind, to, body, ok, error, meta, extId, pollExtId, source }) {
   db.prepare(
-    `INSERT INTO outbox (guest_id, event_id, kind, to_phone, body, provider, channel, meta, ext_id, delivery, ok, error)
-     VALUES (?, ?, ?, ?, ?, ?, 'whatsapp', ?, ?, ?, ?, ?)`,
+    `INSERT INTO outbox (guest_id, event_id, kind, to_phone, body, provider, channel, meta, ext_id, poll_ext_id, source, delivery, ok, error)
+     VALUES (?, ?, ?, ?, ?, ?, 'whatsapp', ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
-    guestId, eventId, kind, to, body, `whatsapp-${cfg.WHATSAPP_MODE}`, meta ? JSON.stringify(meta) : null, extId || null,
+    guestId, eventId, kind, to, body, `whatsapp-${cfg.WHATSAPP_MODE}`, meta ? JSON.stringify(meta) : null,
+    extId || null, pollExtId || null, source || cfg.WHATSAPP_MODE,
     ok && cfg.WHATSAPP_MODE === 'console' ? 'sent' : null, ok ? 1 : 0, error || null,
   );
 }
 
-/** إرسال دعوة أو تذكير (قالب). يرجع { ok, error } ولا يرمي. */
+/** إرسال دعوة أو تذكير (صورة + استفتاء). يرجع { ok, error } ولا يرمي. */
 async function sendTemplate(kind, guest, event) {
   const msg = build(kind, guest, event);
-  const meta = { template: msg.template, image: msg.image, buttons: msg.buttons.map((b) => ({ label: b.label, payload: b.payload })) };
-  let ok = false;
-  let error = null;
-  let extId = null;
-  try {
-    if (cfg.WHATSAPP_MODE === 'cloud') {
-      if (!/^https:\/\//.test(cfg.PUBLIC_BASE_URL)) {
-        throw new Error('PUBLIC_BASE_URL لازم يكون رابط https عام ليتمكن واتساب من تحميل صورة البطاقة');
-      }
-      extId = await post(templatePayload(guest.phone, msg));
-    } else {
-      extId = `console-${crypto.randomBytes(6).toString('hex')}`;
-      console.log(`[واتساب تجريبي] ${kind} إلى ${guest.phone}\n${msg.text}\n`);
-    }
-    ok = true;
-  } catch (err) {
-    error = String(err.message || err).slice(0, 300);
+  const options = msg.buttons.map((b) => ({ label: b.label, action: b.payload.split(':')[0] }));
+
+  if (cfg.WHATSAPP_MODE === 'waha') {
+    const r = await waha.sendInvite(kind, guest, event, msg);
+    logOutbox({
+      guestId: guest.id, eventId: event.id, kind, to: guest.phone, body: r.caption || msg.text,
+      ok: r.ok, error: r.error, meta: r.meta, extId: r.imageId, pollExtId: r.pollId, source: 'waha',
+    });
+    return { ok: r.ok, error: r.error };
   }
-  logOutbox({ guestId: guest.id, eventId: event.id, kind, to: guest.phone, body: msg.text, ok, error, meta, extId });
-  return { ok, error };
+
+  // وضع المعاينة: لا إرسال، ويظهر في السجل بأزرار قابلة للتجربة
+  const meta = {
+    interactive: 'poll',
+    options,
+    image: msg.image,
+    buttons: msg.buttons,
+    caption: msg.text,
+  };
+  console.log(`[واتساب تجريبي] ${kind} إلى ${guest.phone}\n${msg.text}\n`);
+  logOutbox({
+    guestId: guest.id, eventId: event.id, kind, to: guest.phone, body: msg.text,
+    ok: true, error: null, meta, extId: `console-${crypto.randomBytes(6).toString('hex')}`, source: 'console',
+  });
+  return { ok: true, error: null };
 }
 
-/** رد نصي حر (مسموح خلال 24 ساعة من آخر رسالة من الضيف، وضغط الزر يفتح هذه النافذة) */
+/** رد نصي حر على الضيف */
 async function sendText(guest, event, body) {
   let ok = false;
   let error = null;
   let extId = null;
-  try {
-    if (cfg.WHATSAPP_MODE === 'cloud') {
-      extId = await post({
-        messaging_product: 'whatsapp', to: guest.phone, type: 'text', text: { preview_url: true, body },
-      });
-    } else {
-      extId = `console-${crypto.randomBytes(6).toString('hex')}`;
-    }
+  if (cfg.WHATSAPP_MODE === 'waha') {
+    const r = await waha.sendText(guest.phone, body);
+    ok = r.ok;
+    error = r.error;
+    extId = r.extId;
+  } else {
+    extId = `console-${crypto.randomBytes(6).toString('hex')}`;
     ok = true;
-  } catch (err) {
-    error = String(err.message || err).slice(0, 300);
-    console.error('تعذّر إرسال رد واتساب:', error);
   }
-  logOutbox({ guestId: guest.id, eventId: event.id, kind: 'reply', to: guest.phone, body, ok, error, extId });
+  if (!ok) console.error('تعذّر إرسال رد واتساب:', error);
+  logOutbox({
+    guestId: guest.id, eventId: event.id, kind: 'reply', to: guest.phone, body,
+    ok, error, extId, source: cfg.WHATSAPP_MODE,
+  });
   return { ok, error, body };
 }
 
-// ───────── ضغطات الأزرار ─────────
+// ───────── الردود ─────────
 function replyFor(action, guest, event) {
   const link = `${cfg.PUBLIC_BASE_URL}/i/${guest.token}`;
   if (action === 'a') {
@@ -221,7 +187,7 @@ function replyFor(action, guest, event) {
 }
 
 /**
- * يعالج ضغطة زر. payload بصيغة a:TOKEN | d:TOKEN | l:TOKEN، و from رقم المرسل.
+ * يعالج ردّ الضيف. payload بصيغة a:TOKEN | d:TOKEN | l:TOKEN، و from رقم المرسل.
  * يرجع { handled, reply } حيث reply نتيجة sendText أو null.
  */
 async function handleButton(payload, from = null) {
@@ -231,7 +197,7 @@ async function handleButton(payload, from = null) {
   const guest = db.prepare('SELECT * FROM guests WHERE token = ?').get(token);
   if (!guest) return { handled: false };
   if (from && String(from).replace(/\D/g, '') !== guest.phone) {
-    console.warn('[واتساب] تجاهل ضغطة زر من رقم غير رقم الضيف');
+    console.warn('[واتساب] تجاهل ردّ من رقم غير رقم الضيف');
     return { handled: false };
   }
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(guest.event_id);
@@ -244,47 +210,7 @@ async function handleButton(payload, from = null) {
   return { handled: true, action, reply: await sendText(guest, event, replyFor(action, guest, event)) };
 }
 
-// ───────── Webhook ─────────
-const RANK = { sent: 1, delivered: 2, read: 3 };
-
-function applyStatus(s) {
-  const row = db.prepare('SELECT * FROM outbox WHERE ext_id = ?').get(String(s.id));
-  if (!row || !['sent', 'delivered', 'read', 'failed'].includes(s.status)) return;
-  if (s.status !== 'failed' && (RANK[row.delivery] || 0) >= RANK[s.status]) return;
-  db.prepare('UPDATE outbox SET delivery = ? WHERE id = ?').run(s.status, row.id);
-  if (!row.guest_id || (row.kind !== 'invite' && row.kind !== 'reminder')) return;
-  const col = row.kind === 'invite' ? 'invite' : 'reminder';
-  db.prepare(`UPDATE guests SET ${col}_delivery = ? WHERE id = ?`).run(s.status, row.guest_id);
-  if (s.status === 'failed') {
-    const e = (s.errors && s.errors[0]) || {};
-    const why = String(e.message || e.title || 'تعذّر تسليم الرسالة').slice(0, 300);
-    db.prepare(`UPDATE guests SET ${col}_state = 'failed', ${col}_error = ? WHERE id = ?`).run(why, row.guest_id);
-  }
-}
-
-async function processWebhook(body) {
-  if (!body || body.object !== 'whatsapp_business_account') return;
-  for (const entry of body.entry || []) {
-    for (const ch of entry.changes || []) {
-      const v = ch.value || {};
-      for (const s of v.statuses || []) applyStatus(s);
-      for (const m of v.messages || []) {
-        const payload = (m.button && m.button.payload) || (m.interactive && m.interactive.button_reply && m.interactive.button_reply.id);
-        if (payload) await handleButton(payload, m.from);
-      }
-    }
-  }
-}
-
-function verifySignature(rawBody, header) {
-  if (!cfg.WHATSAPP_APP_SECRET || !rawBody || !header) return false;
-  const expected = 'sha256=' + crypto.createHmac('sha256', cfg.WHATSAPP_APP_SECRET).update(rawBody).digest('hex');
-  const a = Buffer.from(expected);
-  const b = Buffer.from(String(header));
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
-}
-
 module.exports = {
-  BODY_INVITE, BODY_REMINDER, BUTTONS, build, templatePayload, sendTemplate, sendText, handleButton,
-  processWebhook, verifySignature, missingForWhatsApp, configProblems, cardUrl, fill,
+  BODY_INVITE, BODY_REMINDER, BUTTONS, build, sendTemplate, sendText, handleButton,
+  replyFor, missingForWhatsApp, configProblems, cardUrl, fill, logOutbox,
 };

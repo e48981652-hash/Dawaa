@@ -14,25 +14,35 @@ if (fs.existsSync(file)) {
 
 const PORT = Number(process.env.PORT || 3000);
 
+// قناة واتساب: console = معاينة تجريبية بدون إرسال، waha = WAHA (محرك WEBJS)
+const rawMode = (process.env.WHATSAPP_MODE || 'console').toLowerCase();
+if (rawMode === 'cloud') {
+  console.warn('[إعداد] WHATSAPP_MODE=cloud لم يعد مدعومًا (أُزيل تكامل Meta Cloud) — يعمل التطبيق في وضع console');
+}
+const WHATSAPP_MODE = rawMode === 'waha' ? 'waha' : 'console';
+
+const stripSlash = (v) => String(v || '').replace(/\/+$/, '');
+
 module.exports = {
   PORT,
-  PUBLIC_BASE_URL: (process.env.PUBLIC_BASE_URL || `http://localhost:${PORT}`).replace(/\/+$/, ''),
+  PUBLIC_BASE_URL: stripSlash(process.env.PUBLIC_BASE_URL || `http://localhost:${PORT}`),
   SMS_PROVIDER: (process.env.SMS_PROVIDER || 'console').toLowerCase(),
   SMS_SENDER: process.env.SMS_SENDER || '',
   SMS_API_KEY: process.env.SMS_API_KEY || '',
   SMS_APP_SID: process.env.SMS_APP_SID || '',
   // قناة الدعوات: whatsapp (افتراضي) أو sms
   INVITE_CHANNEL: (process.env.INVITE_CHANNEL || 'whatsapp').toLowerCase() === 'sms' ? 'sms' : 'whatsapp',
-  // console = معاينة تجريبية بدون إرسال فعلي، cloud = واتساب للأعمال (Meta Cloud API)
-  WHATSAPP_MODE: (process.env.WHATSAPP_MODE || 'console').toLowerCase() === 'cloud' ? 'cloud' : 'console',
-  WHATSAPP_TOKEN: process.env.WHATSAPP_TOKEN || '',
-  WHATSAPP_PHONE_ID: process.env.WHATSAPP_PHONE_ID || '',
-  WHATSAPP_VERIFY_TOKEN: process.env.WHATSAPP_VERIFY_TOKEN || '',
-  WHATSAPP_APP_SECRET: process.env.WHATSAPP_APP_SECRET || '',
-  WHATSAPP_API_VERSION: process.env.WHATSAPP_API_VERSION || 'v23.0',
-  WHATSAPP_TEMPLATE_INVITE: process.env.WHATSAPP_TEMPLATE_INVITE || 'hayyak_invite',
-  WHATSAPP_TEMPLATE_REMINDER: process.env.WHATSAPP_TEMPLATE_REMINDER || 'hayyak_reminder',
-  WHATSAPP_LANG: process.env.WHATSAPP_LANG || 'ar',
+  WHATSAPP_MODE,
+
+  // ── WAHA (WhatsApp HTTP API — محرك WEBJS) ──
+  WAHA_BASE_URL: stripSlash(process.env.WAHA_BASE_URL || 'http://127.0.0.1:3006'),
+  WAHA_API_KEY: process.env.WAHA_API_KEY || '',
+  WAHA_SESSION: process.env.WAHA_SESSION || 'default',
+  WAHA_WEBHOOK_HMAC_KEY: process.env.WAHA_WEBHOOK_HMAC_KEY || '',
+  // تباعد بين الرسائل لتقليل خطر حظر الرقم (مللي ثانية)
+  WAHA_SEND_DELAY_MS: Number(process.env.WAHA_SEND_DELAY_MS || 4000),
+  WAHA_SEND_JITTER_MS: Number(process.env.WAHA_SEND_JITTER_MS || 3000),
+
   // ساعة إرسال التذكير (بتوقيت الرياض) في اليوم السابق للمناسبة
   REMINDER_HOUR: Number(process.env.REMINDER_HOUR || 10),
   SCHEDULER_INTERVAL_MS: Number(process.env.SCHEDULER_INTERVAL_MS || 60000),

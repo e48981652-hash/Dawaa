@@ -10,7 +10,7 @@ const KIND_LABELS = {
 };
 const STATUS_LABELS = { accepted: 'حاضر', declined: 'معتذر', maybe: 'ربما', pending: 'لم يرد' };
 
-const state = { user: null, demoMode: false, channel: 'whatsapp', problems: [] };
+const state = { user: null, demoMode: false, channel: 'whatsapp', whatsappMode: 'console', problems: [], waStatus: null };
 let navId = 0;
 let cleanup = null;
 const appEl = document.getElementById('app');
@@ -111,7 +111,7 @@ function inviteMock(v) {
           h('div', { class: 'btn ghost' }, 'أعتذر')))));
 }
 
-const KIND_MSG = { invite: 'دعوة', reminder: 'تذكير', reply: 'رد تلقائي' };
+const KIND_MSG = { invite: 'دعوة', reminder: 'تذكير', reply: 'رد تلقائي', inbound: 'رد وارد' };
 // روابط الصور تُعرض من نفس الموقع الذي فتحت منه التطبيق (الرابط المخزّن قد يكون عنوان النشر)
 const relUrl = (u) => { try { return new URL(u).pathname; } catch { return u; } };
 
@@ -533,6 +533,7 @@ async function viewEvent(eventId) {
   let filter = 'all';
   let query = '';
   let pollTimer = null;
+  let waChecked = false;
   const openMore = new Set();
 
   const headEl = h('section', { class: 'event-head' });
@@ -570,7 +571,7 @@ async function viewEvent(eventId) {
     const note = state.demoMode
       ? 'وضع تجريبي: لن تُرسل رسائل فعلية.'
       : state.channel === 'whatsapp'
-        ? 'تصل الدعوة على واتساب بصورة البطاقة وأزرار الرد، وتُحتسب رسوم الرسالة لدى واتساب للأعمال.'
+        ? 'تصل الدعوة على واتساب بصورة البطاقة ونص الدعوة، ومعها استفتاء بخيارَي القبول أو الاعتذار.'
         : 'تُحتسب رسائل SMS من رصيدك لدى مزود الرسائل.';
     if (!confirm(`سيتم إرسال الدعوة إلى ${n} ضيف.\n${note}\nمتابعة؟`)) return;
     try {
@@ -604,7 +605,10 @@ async function viewEvent(eventId) {
 
   async function openOutbox() {
     const body = h('div', null, h('p', { class: 'muted' }, 'جارٍ التحميل…'));
-    openDialog('سجل الرسائل', body);
+    const dlg = openDialog('سجل الرسائل', body);
+    let timer = null;
+    const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+    dlg.addEventListener('close', stop);
     const load = async () => {
       try {
         const r = await api.get(`/api/events/${eventId}/outbox`);
@@ -613,11 +617,14 @@ async function viewEvent(eventId) {
             r.simulate
               ? 'وضع تجريبي: هذه الرسائل لم تُرسل فعلياً. اضغط على أزرار الرسالة لتجرّب كيف يرد الضيف، وستتحدث حالته في القائمة.'
               : 'وضع تجريبي: هذه الرسائل لم تُرسل فعلياً، وتظهر هنا لتراجع صياغتها.'),
+          r.provider === 'whatsapp-waha' && h('p', { class: 'hint' },
+            'الردود الواردة من الضيوف (تصويت الاستفتاء أو رسالة نصية) تظهر هنا تلقائياً خلال ثوانٍ، وتُحدَّث حالة الضيف في القائمة.'),
           r.messages.length === 0 && h('p', { class: 'muted' }, 'لا توجد رسائل بعد.'),
           r.messages.map((m) => (m.channel === 'whatsapp' ? waBubble(m, r.simulate, load) : smsItem(m))));
       } catch (ex) { put(body, h('p', { class: 'form-error' }, ex.message)); }
     };
-    load();
+    await load();
+    timer = setInterval(() => { if (!document.hidden) load(); }, 10000);
   }
 
   function smsItem(m) {
@@ -629,32 +636,40 @@ async function viewEvent(eventId) {
       h('pre', null, m.body));
   }
 
-  // رسالة واتساب بشكلها الحقيقي: صورة البطاقة والنص والأزرار
+  // رسالة واتساب بشكلها الحقيقي: صورة البطاقة والنص وخيارات الاستفتاء
   function waBubble(m, simulate, reload) {
     const rich = (text) => text.split(/(\*[^*\n]+\*)/g).map((part) =>
       (/^\*[^*\n]+\*$/.test(part) ? h('b', null, part.slice(1, -1)) : part));
-    const tap = async (b) => {
+    const tap = async (action) => {
       try {
-        const r = await api.post(`/api/events/${eventId}/guests/${m.guestId}/simulate`, { action: b.payload.split(':')[0] });
+        const r = await api.post(`/api/events/${eventId}/guests/${m.guestId}/simulate`, { action });
         toast(r.reply ? 'سُجّل ردّ الضيف، وأُرسل له تأكيد' : 'تعذّر تسجيل الرد', r.ok ? undefined : 'error');
         await reload();
         refresh();
       } catch (ex) { toast(ex.message, 'error'); }
     };
-    const delivery = { sent: 'أُرسلت', delivered: 'وصلت', read: 'قُرئت' }[m.delivery];
-    return h('div', { class: 'wa-item' },
+    const inbound = m.kind === 'inbound';
+    const choices = (m.options && m.options.length ? m.options : (m.buttons || []).map((b) => ({
+      label: b.label, action: String(b.payload || '').split(':')[0],
+    }))).filter((o) => o && o.label && o.action !== 'l');
+    const delivery = { sent: 'أُرسلت', delivered: 'وصلت', read: 'قُرئت', failed: 'فشلت' }[m.delivery];
+    const who = m.guestName || m.phone;
+    return h('div', { class: 'wa-item' + (inbound ? ' inbound' : '') },
       h('header', { class: 'wa-head' },
-        h('span', null, `${KIND_MSG[m.kind] || 'رسالة'} إلى ${m.guestName || m.phone}`),
-        h('span', { class: m.ok ? 'plus' : 'guest-meta bad' }, m.ok ? (delivery || 'أُرسلت') : 'فشلت')),
+        h('span', null, inbound ? `رد وارد من ${who}` : `${KIND_MSG[m.kind] || 'رسالة'} إلى ${who}`),
+        h('span', { class: inbound ? 'plus' : (m.ok ? 'plus' : 'guest-meta bad') },
+          inbound ? 'تم الاستلام' : (m.ok ? (delivery || 'أُرسلت') : 'فشلت'))),
       m.error && h('p', { class: 'hint' }, m.error),
-      h('div', { class: 'wa-bubble' },
+      h('div', { class: 'wa-bubble' + (inbound ? ' in' : '') },
         m.image && h('img', { class: 'wa-img', src: relUrl(m.image), alt: 'بطاقة الدعوة', loading: 'lazy' }),
         h('div', { class: 'wa-text' }, rich(m.body))),
-      m.buttons && m.buttons.length > 0 && h('div', { class: 'wa-btns' },
-        m.buttons.map((b) => h('button', {
-          class: 'wa-btn', type: 'button', disabled: !simulate, title: simulate ? 'تجربة ضغط الضيف على الزر' : '',
-          onclick: () => tap(b),
-        }, b.label))));
+      choices.length > 0 && h('div', { class: 'wa-btns' },
+        choices.map((o) => (simulate
+          ? h('button', {
+            class: 'wa-btn', type: 'button', title: 'تجربة ضغط الضيف على الخيار',
+            onclick: () => tap(o.action),
+          }, o.label)
+          : h('span', { class: 'wa-opt' }, o.label)))));
   }
 
   function openAddGuests() {
@@ -790,12 +805,33 @@ async function viewEvent(eventId) {
   }
 
   // — العرض —
+  const WA_LABELS = {
+    WORKING: ['ok', 'واتساب متصل'],
+    SCAN_QR_CODE: ['warn', 'واتساب بانتظار مسح QR'],
+    STARTING: ['warn', 'جارٍ تشغيل واتساب'],
+    PASSKEY_REQUIRED: ['warn', 'واتساب يحتاج تأكيداً'],
+    PASSKEY_CONFIRMATION_REQUIRED: ['warn', 'واتساب يحتاج رمز تأكيد'],
+    STOPPED: ['bad', 'واتساب متوقف'],
+    FAILED: ['bad', 'تعذّر تشغيل واتساب'],
+  };
+
+  function waBadge() {
+    if (!(state.channel === 'whatsapp' && state.whatsappMode === 'waha')) return null;
+    const st = state.waStatus || {};
+    const [cls, label] = WA_LABELS[st.status] || ['warn', 'حالة واتساب غير معروفة'];
+    return h('span', {
+      class: `wa-status ${cls}`,
+      title: st.phone ? `رقم الجلسة: +${st.phone}` : 'حالة جلسة WAHA',
+    }, label);
+  }
+
   function renderHead() {
     const e = data.event;
     put(headEl,
       h('div', { class: 'page-head' },
         h('h1', null, e.title),
         h('a', { class: 'btn ghost small', href: `#/e/${e.id}/edit` }, 'تعديل')),
+      waBadge(),
       e.hostLine && h('p', { class: 'host' }, `دعوة من ${e.hostLine}`),
       h('p', { class: 'when' }, `${e.display.weekday} ${e.display.gregorian}`),
       h('p', { class: 'when-sub' }, `${e.display.hijri}، الساعة ${e.display.time}`),
@@ -955,6 +991,17 @@ async function viewEvent(eventId) {
       const d = await api.get(`/api/events/${eventId}`);
       if (my !== navId) return;
       data = d;
+      if (state.channel === 'whatsapp' && state.whatsappMode === 'waha') {
+        try {
+          const s = await api.get(`/api/waha/status${waChecked ? '' : '?live=1'}`);
+          waChecked = true;
+          state.waStatus = {
+            status: s.live && s.live.ok ? s.live.status : s.status,
+            phone: s.phone,
+            updatedAt: s.updatedAt,
+          };
+        } catch { /* حالة WAHA غير متاحة الآن */ }
+      }
       renderAll();
     } catch { /* خطأ مؤقت، نعيد المحاولة في الدورة التالية */ }
     schedule();
@@ -990,7 +1037,9 @@ async function route() {
       state.user = me.user;
       state.demoMode = me.demoMode;
       state.channel = me.channel;
+      state.whatsappMode = me.whatsappMode || 'console';
       state.problems = me.whatsappProblems || [];
+      state.waStatus = me.waStatus || null;
     } catch {
       if (my === navId) mount(viewAuth());
       return;
